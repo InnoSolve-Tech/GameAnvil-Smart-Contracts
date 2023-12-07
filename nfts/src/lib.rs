@@ -2,15 +2,30 @@
 
 #[ink::contract]
 mod erc721 {
-    use ink::storage::Mapping;
+    use ink::prelude::string::String;
+    use ink::prelude::vec::Vec;
+    use ink::storage::{Mapping};
 
-    use scale::{
-        Decode,
-        Encode,
-    };
+    use scale::{Decode, Encode};
 
     /// A token ID.
     pub type TokenId = u32;
+
+    // Define the metadata structure
+    #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+    pub struct TokenMetadata {
+        pub name: Vec<u8>,
+        pub description: Vec<u8>,
+        pub url: Vec<u8>,
+    }
+
+    impl TokenMetadata {
+        // Constructor for TokenMetadata
+        pub fn new(name: Vec<u8>, description: Vec<u8>, url:Vec<u8>) -> Self {
+            Self { name, description, url }
+        }
+    }
 
     #[ink(storage)]
     #[derive(Default)]
@@ -23,6 +38,8 @@ mod erc721 {
         owned_tokens_count: Mapping<AccountId, u32>,
         /// Mapping from owner to operator approvals.
         operator_approvals: Mapping<(AccountId, AccountId), ()>,
+        /// Mapping from token ID to metadata.
+        token_metadata: Mapping<TokenId, TokenMetadata>,
     }
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq, Copy, Clone)]
@@ -72,9 +89,27 @@ mod erc721 {
 
     impl Erc721 {
         /// Creates a new ERC-721 token contract.
+        /// Creates a new ERC-721 token contract.
         #[ink(constructor)]
         pub fn new() -> Self {
             Default::default()
+        }
+
+        /// Ensures that the caller is the owner of the specified token.
+        fn ensure_owner(&self, owner: AccountId, id: TokenId) -> Result<(), Error> {
+            if self.token_owner.get(id) != Some(owner) {
+                return Err(Error::NotOwner);
+            }
+            Ok(())
+        }
+
+        /// Ensures that the caller is approved for the specified token.
+        fn ensure_approved(&self, id: TokenId) -> Result<(), Error> {
+            let caller = self.env().caller();
+            if !self.approved_or_owner(Some(caller), id) {
+                return Err(Error::NotApproved);
+            }
+            Ok(())
         }
 
         /// Returns the balance of the owner.
@@ -121,6 +156,21 @@ mod erc721 {
             Ok(())
         }
 
+        /// Creates a new token with metadata.
+        #[ink(message)]
+        pub fn mint_with_metadata(&mut self, id: TokenId, metadata: TokenMetadata) -> Result<(), Error> {
+            let caller = self.env().caller();
+            self.add_token_to(&caller, id)?;
+            self.token_metadata.insert(id, &metadata);
+
+            self.env().emit_event(Transfer {
+                from: Some(AccountId::from([0x0; 32])),
+                to: Some(caller),
+                id,
+            });
+            Ok(())
+        }
+
         /// Transfers the token from the caller to the given destination.
         #[ink(message)]
         pub fn transfer(
@@ -129,7 +179,16 @@ mod erc721 {
             id: TokenId,
         ) -> Result<(), Error> {
             let caller = self.env().caller();
-            self.transfer_token_from(&caller, &destination, id)?;
+            self.ensure_owner(caller, id)?;
+            self.ensure_approved(id)?;
+            self.clear_approval(id);
+            self.remove_token_from(&caller, id)?;
+            self.add_token_to(&destination, id)?;
+            self.env().emit_event(Transfer {
+                from: Some(caller),
+                to: Some(destination),
+                id,
+            });
             Ok(())
         }
 
