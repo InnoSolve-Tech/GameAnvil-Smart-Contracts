@@ -2,30 +2,13 @@
 
 #[ink::contract]
 mod erc721 {
-    use ink::prelude::string::String;
+    use ink::storage::Mapping;
     use ink::prelude::vec::Vec;
-    use ink::storage::{Mapping};
 
     use scale::{Decode, Encode};
 
     /// A token ID.
     pub type TokenId = u32;
-
-    // Define the metadata structure
-    #[derive(Encode, Decode, Debug, PartialEq, Eq, Clone)]
-    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-    pub struct TokenMetadata {
-        pub name: Vec<u8>,
-        pub description: Vec<u8>,
-        pub url: Vec<u8>,
-    }
-
-    impl TokenMetadata {
-        // Constructor for TokenMetadata
-        pub fn new(name: Vec<u8>, description: Vec<u8>, url:Vec<u8>) -> Self {
-            Self { name, description, url }
-        }
-    }
 
     #[ink(storage)]
     #[derive(Default)]
@@ -39,7 +22,7 @@ mod erc721 {
         /// Mapping from owner to operator approvals.
         operator_approvals: Mapping<(AccountId, AccountId), ()>,
         /// Mapping from token ID to metadata.
-        token_metadata: Mapping<TokenId, TokenMetadata>,
+        token_metadata: Mapping<TokenId, Vec<u8>>,
     }
 
     #[derive(Encode, Decode, Debug, PartialEq, Eq, Copy, Clone)]
@@ -88,7 +71,6 @@ mod erc721 {
     }
 
     impl Erc721 {
-        /// Creates a new ERC-721 token contract.
         /// Creates a new ERC-721 token contract.
         #[ink(constructor)]
         pub fn new() -> Self {
@@ -158,7 +140,7 @@ mod erc721 {
 
         /// Creates a new token with metadata.
         #[ink(message)]
-        pub fn mint_with_metadata(&mut self, id: TokenId, metadata: TokenMetadata) -> Result<(), Error> {
+        pub fn mint_with_metadata(&mut self, id: TokenId, metadata: Vec<u8>) -> Result<(), Error> {
             let caller = self.env().caller();
             self.add_token_to(&caller, id)?;
             self.token_metadata.insert(id, &metadata);
