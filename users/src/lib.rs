@@ -39,6 +39,13 @@ pub mod users {
         follower_count: u32
     }
 
+    #[ink(event)]
+    pub struct UnFollowUser {
+        follower: AccountId,
+        followed: AccountId,
+        follower_count: u32
+    }
+
     impl Users {
         /// Creates a new User smart contract initialized with the given value.
         #[ink(constructor)]
@@ -49,7 +56,7 @@ pub mod users {
         /// Checks if the user account is registered.
         #[ink(message)]
         pub fn verify_user(&self,id:AccountId) {
-            assert!(self.users.get(id) != None, "Not the owner of the contract!");
+            assert!(self.users.get(id) != None, "Account not found!");
         }
 
         /// Creates a user in the contract.
@@ -60,7 +67,6 @@ pub mod users {
             self.env().emit_event(CreateUser{ id: self.env().caller(), index: self.user_count});
             self.user_count += 1;
         }
-
 
         /// Follows a user.
         #[ink(message)]
@@ -74,6 +80,7 @@ pub mod users {
             self.env().emit_event(FollowUser{ follower: self.env().caller(), followed: id, follower_count: length+1 })
         }
 
+        /// Unfollows a user.
         #[ink(message)]
         pub fn unfollow_user(&mut self, id:AccountId) {
             let mut followers_list: Vec<ink::primitives::AccountId> =self.followers.list.get(&id).expect("Account not found!"); 
@@ -81,7 +88,7 @@ pub mod users {
             self.followers.list.insert(&id, &followers_list);
             let length: &u32 = &(self.followers.length.get(id)).expect("Followers not set!");
             self.followers.length.insert(id, &(length -1));
-            self.env().emit_event(FollowUser{ follower: self.env().caller(), followed: id, follower_count: length-1 })
+            self.env().emit_event(UnFollowUser{ follower: self.env().caller(), followed: id, follower_count: length-1 })
 
         }
 
@@ -92,6 +99,26 @@ pub mod users {
 
         
 
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[ink::test]
+        fn create_user_test() {
+            let mut user: Users = Users::new();
+            user.create_user();
+            assert_eq!(user.user_count, 1);
+        }
+
+        #[ink::test]
+        fn verify_user_test() {
+            let account = ink::env::test::default_accounts::<ink::env::DefaultEnvironment>();
+            let mut user: Users = Users::new();
+            user.create_user();
+            user.verify_user(account.alice);
+        }
     }
    
 }
