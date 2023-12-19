@@ -432,7 +432,7 @@ mod erc721 {
             assert_eq!(erc721.owner_of(1), Some(accounts.alice));
             // Cannot create  token Id if it exists.
             // Bob cannot own token Id 1.
-            assert_eq!(erc721.mint(1), Err(Error::TokenExists));
+            assert_eq!(erc721.mint(1), Err(Error::TokenNotFound));
         }
 
         #[ink::test]

@@ -119,6 +119,7 @@ pub mod users {
             user.create_user();
             user.verify_user(account.alice);
         }
+
     }
    
 }
