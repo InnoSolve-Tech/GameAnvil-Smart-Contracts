@@ -3,14 +3,15 @@
 #[ink::contract]
 pub mod users {
     use ink::storage::Mapping;
+    use ink::prelude::vec::Vec;
 
     
     /// Followers for a user.
     #[ink::storage_item]
     #[derive(Debug)]
     pub struct Followers {
-        /// Mapping of Follower, to followed.
-        list: Mapping<AccountId, AccountId>,
+        /// Mapping of Followed, to List of Followers.
+        list: Mapping<AccountId, Vec<AccountId>>,
         /// Mapping of followed account to number of followers.
         length: Mapping<AccountId, u32>,
     }
@@ -64,10 +65,24 @@ pub mod users {
         /// Follows a user.
         #[ink(message)]
         pub fn follow_user(&mut self, id:AccountId) {
-            self.followers.list.insert(self.env().caller(), &id);
+            self.verify_user(self.env().caller());
+            let mut followers_list: Vec<ink::primitives::AccountId> =self.followers.list.get(&id).expect("Account not found!"); 
+            followers_list.push(self.env().caller());
+            self.followers.list.insert(&id,&followers_list);
             let length: &u32 = &(self.followers.length.get(id)).expect("Followers not set!");
             self.followers.length.insert(id, &(length +1));
+            self.env().emit_event(FollowUser{ follower: self.env().caller(), followed: id, follower_count: length+1 })
+        }
+
+        #[ink(message)]
+        pub fn unfollow_user(&mut self, id:AccountId) {
+            let mut followers_list: Vec<ink::primitives::AccountId> =self.followers.list.get(&id).expect("Account not found!"); 
+            followers_list =  followers_list.into_iter().filter(|&x| x != self.env().caller()).collect::<Vec<ink::primitives::AccountId>>();
+            self.followers.list.insert(&id, &followers_list);
+            let length: &u32 = &(self.followers.length.get(id)).expect("Followers not set!");
+            self.followers.length.insert(id, &(length -1));
             self.env().emit_event(FollowUser{ follower: self.env().caller(), followed: id, follower_count: length-1 })
+
         }
 
         #[ink(message)]
